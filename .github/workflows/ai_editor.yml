@@ -1,0 +1,77 @@
+name: AI Level Editor Engine
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Nhập ý tưởng thiết kế màn chơi của bạn'
+        required: true
+        type: string
+      level_id:
+        description: 'ID Level cũ (Bỏ trống nếu tạo mới từ đầu)'
+        required: false
+        type: string
+
+jobs:
+  generate_gd_string:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python Môi Trường
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Cài Đặt Thư Viện AI
+        run: |
+          pip install google-genai requests
+
+      - name: Gọi Gemini AI Tạo Level
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python -c "
+          import os
+          from google import genai
+
+          client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+          
+          prompt_nguoi_dung = '${{ inputs.prompt }}'
+          level_id = '${{ inputs.level_id }}'
+          
+          context = ''
+          if level_id:
+              context = f'- Người chơi đang muốn làm tiếp một Level đã có sẵn mang ID: {level_id}. Hãy nối tiếp dữ liệu vào trục X lớn hơn.'
+
+          full_prompt = f'''
+          Bạn là hạt nhân AI chuyên tạo màn chơi cho game Geometry Dash.
+          Hãy dịch ý tưởng sau thành chuỗi vật thể (Object String) chuẩn của Geometry Dash.
+          Ý tưởng người chơi: \"{prompt_nguoi_dung}\"
+          {context}
+          
+          Quy tắc chuỗi dữ liệu GD bắt buộc:
+          - Định dạng một vật thể: ID,X,Y (Các thuộc tính cách nhau bằng dấu phẩy, các vật thể cách nhau bằng dấu chấm phẩy ';').
+          - ID 1: Khối Block vuông cơ bản để dẫm nhảy.
+          - ID 8: Gai nhọn (Spike).
+          - ID 10: Vòng nhảy màu vàng (Yellow Orb).
+          - ID 35: Đệm nhảy màu vàng (Yellow Pad).
+          
+          Ví dụ chuỗi đầu ra hợp lệ: 1,15,15;1,45,15;8,45,30;10,75,45;
+          CHÚ Ý: CHỈ TRẢ VỀ CHUỖI BLOCK GD, KHÔNG ĐƯỢC GIẢI THÍCH, KHÔNG DÙNG MARKDOWN.
+          '''
+
+          try:
+              response = client.models.generate_content(
+                  model='gemini-2.5-flash',
+                  contents=full_prompt,
+              )
+              print('========================================')
+              print('CHUỖI GEOMETRY DASH CỦA BẠN ĐÂY:')
+              print(response.text.strip().replace('\n', '').replace(' ', ''))
+              print('========================================')
+          except Exception as e:
+              print(f'Lỗi hệ thống: {e}')
+          "
+          
